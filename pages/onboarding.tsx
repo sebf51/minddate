@@ -25,15 +25,20 @@ export default function Onboarding() {
     looking_for: '',
   })
 
-  function handleChange(e) {
-    const { name, value, type, checked } = e.target
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
+    const target = e.target
+    const { name, value, type } = target
+    const isInput = target instanceof HTMLInputElement
+    const checked = isInput && type === 'checkbox' ? target.checked : undefined
     setForm((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError('')

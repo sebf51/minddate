@@ -75,7 +75,11 @@ export default function DashboardPage() {
     loadData()
   }, [router])
 
-  async function handleLogout() {
+  async function handleChange(
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) {  
     await supabase.auth.signOut()
     router.push('/login')
   }

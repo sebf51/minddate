@@ -31,11 +31,13 @@ export default async function handler(
       return res.status(400).json({ error: 'user_id and user_bio required' })
     }
 
-    // Fetch all fake profiles
+    // Fetch all profiles except current user
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
       .select('id, bio')
-      .in('id', ['fake-1', 'fake-2', 'fake-3'])
+      .neq('id', user_id)
+      .not('bio', 'is', null)
+      .neq('bio', '')
 
     if (profileError || !profiles || profiles.length === 0) {
       return res.status(500).json({ error: 'No profiles found' })

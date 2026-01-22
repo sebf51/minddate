@@ -8,6 +8,8 @@ type Profile = {
   email: string
   full_name: string | null
   bio: string | null
+  age?: number | null
+  marriage_intent?: string | null
 }
 
 type Match = {
@@ -45,6 +47,18 @@ export default function DashboardPage() {
         .select('*')
         .eq('id', user.id)
         .single()
+
+      if (!profileData) {
+        // Si no existe perfil, redirigir a onboarding
+        router.replace('/onboarding')
+        return
+      }
+
+      // Verificar si el perfil está completo (tiene age y marriage_intent)
+      if (!profileData.age || !profileData.marriage_intent) {
+        router.replace('/onboarding')
+        return
+      }
 
       if (profileData) {
         setProfile(profileData as Profile)

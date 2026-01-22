@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 
+
 type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
 }
+
 
 export default function CoachPage() {
   const router = useRouter()
@@ -17,16 +19,19 @@ export default function CoachPage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+
   useEffect(() => {
     async function loadBio() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
+
       if (!user) {
         router.replace('/login')
         return
       }
+
 
       const { data, error } = await supabase
         .from('profiles')
@@ -34,9 +39,9 @@ export default function CoachPage() {
         .eq('id', user.id)
         .single()
 
+
       if (error) {
         setError(error.message)
-        // Establecer mensaje inicial incluso cuando hay error
         setMessages([
           {
             role: 'assistant',
@@ -52,7 +57,7 @@ export default function CoachPage() {
             {
               role: 'assistant',
               content:
-                "Hey Seb 👋 I've got your bio. What would you like to work on today?",
+                "Hey Seb 👋 I've got your bio. What would you like to work on today? Ask me anything about your dating profile, messages, or dating advice!",
             },
           ])
         } else {
@@ -60,26 +65,29 @@ export default function CoachPage() {
             {
               role: 'assistant',
               content:
-                "Hey Seb 👋 First, let's fill in your dating profile. Go to /dashboard/profile and come back with your bio ready.",
+                "Hey Seb 👋 First, let's fill in your dating profile. Go to the Profile page and add your bio, then come back here.",
             },
           ])
         }
       }
 
+
       setLoading(false)
     }
 
+
     loadBio()
   }, [router])
+
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!input.trim()) return
 
+
     if (!bio) {
       const errorMsg = 'Please fill your bio at /dashboard/profile first'
       setError(errorMsg)
-      // Agregar mensaje de error al chat para mejor UX
       setMessages((prev) => [
         ...prev,
         {
@@ -90,17 +98,21 @@ export default function CoachPage() {
       return
     }
 
+
     setError(null)
     setSending(true)
+
 
     const newUserMessage: ChatMessage = {
       role: 'user',
       content: input.trim(),
     }
 
+
     const newMessages = [...messages, newUserMessage]
     setMessages(newMessages)
     setInput('')
+
 
     try {
       const res = await fetch('/api/coach', {
@@ -112,19 +124,21 @@ export default function CoachPage() {
         }),
       })
 
+
       const data = await res.json()
+
 
       if (!res.ok) {
         throw new Error(data.error || 'Coach error')
       }
 
+
       const reply: ChatMessage = data.reply
       setMessages((prev) => [...prev, reply])
-      setError(null) // Limpiar errores previos si la respuesta fue exitosa
+      setError(null)
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error from coach'
       setError(errorMessage)
-      // Agregar mensaje de error al chat para mejor UX
       setMessages((prev) => [
         ...prev,
         {
@@ -137,69 +151,110 @@ export default function CoachPage() {
     }
   }
 
-  if (loading) return <p className="p-4">Loading...</p>
+
+  if (loading) {
+    return (
+      <div className="dashboard-container text-center mt-8">
+        <div className="loader"></div>
+        <p className="mt-3">Loading coach...</p>
+      </div>
+    )
+  }
+
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-6 flex flex-col h-[80vh]">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold">Dating Coach (Groq + Sonnet)</h1>
-          <p className="text-sm text-gray-600">
-            Bio: <span className="font-medium">{bio || 'No bio yet'}</span>
-          </p>
+    <div>
+      {/* HEADER */}
+      <div className="dashboard-header">
+        <h1>Minddate</h1>
+        <div className="dashboard-nav">
+          <a href="/dashboard">← Dashboard</a>
+          <a href="/dashboard/profile">Profile</a>
         </div>
+      </div>
 
-        {error && <p className="text-red-500 mb-2">{error}</p>}
+      {/* MAIN CONTAINER */}
+      <div className="dashboard-container">
+        
+        {/* COACH CARD */}
+        <div className="dashboard-card">
+          <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <h2>Dating Coach 🎯</h2>
+            <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+              Powered by AI | Your bio: <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>
+                {bio ? bio.substring(0, 50) + (bio.length > 50 ? '...' : '') : 'Not set'}
+              </span>
+            </p>
+          </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 mb-4 border rounded p-3 bg-gray-50">
-          {messages.map((m, idx) => (
-            <div key={idx} className={m.role === 'user' ? 'text-right' : 'text-left'}>
-              <div
-                className={
-                  m.role === 'user'
-                    ? 'inline-block bg-blue-600 text-white px-3 py-2 rounded-lg max-w-xs'
-                    : 'inline-block bg-gray-200 text-gray-900 px-3 py-2 rounded-lg max-w-xs'
-                }
-              >
-                {m.content}
-              </div>
+          {error && (
+            <div className="alert alert-error mb-4">
+              {error}
             </div>
-          ))}
-
-          {messages.length === 0 && (
-            <p className="text-sm text-gray-500">Start the conversation.</p>
           )}
 
-          {sending && (
-            <div className="text-left">
-              <div className="inline-block bg-gray-200 text-gray-900 px-3 py-2 rounded-lg">
-                <div className="flex gap-2">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100" />
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200" />
+          {/* CHAT CONTAINER */}
+          <div className="chat-container">
+            
+            {/* MESSAGES */}
+            <div className="chat-messages">
+              {messages.map((m, idx) => (
+                <div key={idx} className={`chat-message ${m.role}`}>
+                  <div className="chat-message-content">
+                    {m.content}
+                  </div>
                 </div>
-              </div>
+              ))}
+
+              {messages.length === 0 && (
+                <div className="empty-state">
+                  <p style={{ fontSize: '14px' }}>No messages yet. Start the conversation!</p>
+                </div>
+              )}
+
+              {sending && (
+                <div className="chat-message assistant">
+                  <div className="chat-message-content">
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div className="loader" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div>
+                      <span>Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* INPUT FORM */}
+            <form onSubmit={handleSend} className="chat-input-group">
+              <input
+                type="text"
+                placeholder="Ask your coach anything..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={sending}
+              />
+              <button
+                type="submit"
+                disabled={sending}
+              >
+                {sending ? '⏳' : '✉️ Send'}
+              </button>
+            </form>
+
+          </div>
+
+          {/* FOOTER INFO */}
+          <p style={{ 
+            fontSize: '12px', 
+            color: 'var(--color-text-secondary)',
+            marginTop: 'var(--spacing-md)',
+            textAlign: 'center'
+          }}>
+            💡 Tip: Be specific about what you want help with. The coach learns from your bio.
+          </p>
+
         </div>
 
-        <form onSubmit={handleSend} className="flex gap-2">
-          <input
-            type="text"
-            className="flex-1 border rounded px-3 py-2"
-            placeholder="Ask your coach..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={sending}
-          />
-          <button
-            type="submit"
-            disabled={sending}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
-          >
-            {sending ? 'Sending...' : 'Send'}
-          </button>
-        </form>
       </div>
     </div>
   )

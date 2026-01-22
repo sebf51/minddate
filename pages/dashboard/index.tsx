@@ -92,9 +92,18 @@ export default function DashboardPage() {
     setMatchError(null)
 
     try {
+      // Obtener token de sesión de Supabase
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+
       const res = await fetch('/api/match', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
         body: JSON.stringify({
           user_id: profile.id,
           user_bio: profile.bio,

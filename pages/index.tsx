@@ -75,14 +75,10 @@ export default function DashboardPage() {
     loadData()
   }, [router])
 
-  async function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) {  
+  async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
-  }
+  }  
 
   if (loading) {
     return <p className="p-4">Cargando dashboard...</p>
@@ -101,11 +97,11 @@ export default function DashboardPage() {
               Chat Groq
             </Link>
             <button
-              onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded"
-            >
-              Cerrar sesión
-            </button>
+  onClick={handleLogout}
+  className="bg-red-500 text-white px-4 py-2 rounded"
+>
+  Cerrar sesión
+</button>
           </div>
         </div>
 

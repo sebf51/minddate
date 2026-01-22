@@ -3,14 +3,12 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 
-
 type Profile = {
   id: string
   email: string
   full_name: string | null
   bio: string | null
 }
-
 
 type Match = {
   id: string
@@ -20,14 +18,14 @@ type Match = {
   explanation: string | null
 }
 
-
 export default function DashboardPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
-
+  const [generatingMatches, setGeneratingMatches] = useState(false)
+  const [matchError, setMatchError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -35,15 +33,12 @@ export default function DashboardPage() {
         data: { user },
       } = await supabase.auth.getUser()
 
-
       if (!user) {
         router.replace('/login')
         return
       }
 
-
       setUserEmail(user.email ?? null)
-
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -51,11 +46,9 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single()
 
-
       if (profileData) {
         setProfile(profileData as Profile)
       }
-
 
       const { data: matchesData } = await supabase
         .from('matches')
@@ -63,21 +56,56 @@ export default function DashboardPage() {
         .eq('user_id', user.id)
         .order('score', { ascending: false })
 
-
       setMatches((matchesData as Match[]) || [])
       setLoading(false)
     }
 
-
     loadData()
   }, [router])
-
 
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
+  async function handleGenerateMatches() {
+    if (!profile || !profile.bio) {
+      setMatchError('Please fill your bio first')
+      return
+    }
+
+    setGeneratingMatches(true)
+    setMatchError(null)
+
+    try {
+      const res = await fetch('/api/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: profile.id,
+          user_bio: profile.bio,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error)
+
+      // Reload matches from DB
+      const { data: matchesData } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('score', { ascending: false })
+
+      setMatches((matchesData as Match[]) || [])
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error generating matches'
+      setMatchError(msg)
+    } finally {
+      setGeneratingMatches(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -87,7 +115,6 @@ export default function DashboardPage() {
       </div>
     )
   }
-
 
   return (
     <div>
@@ -137,10 +164,35 @@ export default function DashboardPage() {
         {/* MATCHES CARD */}
         <div className="dashboard-card">
           <h2>Mis Matches ({matches.length})</h2>
+
+          {/* ERROR ALERT */}
+          {matchError && (
+            <div className="alert alert-error mb-4">
+              {matchError}
+            </div>
+          )}
+
+          {/* GENERATE BUTTON */}
+          <div className="mb-4">
+            <button
+              onClick={handleGenerateMatches}
+              disabled={generatingMatches || !profile?.bio}
+              className="btn btn-primary"
+            >
+              {generatingMatches ? '⏳ Buscando matches...' : '🔍 Generar matches'}
+            </button>
+            {!profile?.bio && (
+              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
+                ⚠️ Completa tu bio primero
+              </p>
+            )}
+          </div>
+
+          {/* MATCHES LIST */}
           {matches.length === 0 ? (
             <div className="empty-state">
               <p>Aún no tienes matches.</p>
-              <p className="text-sm mt-2">Pronto añadiremos un botón para generarlos con Groq.</p>
+              <p className="text-sm mt-2">Haz clic en "Generar matches" para encontrar perfiles compatibles.</p>
             </div>
           ) : (
             <div className="space-y-3">

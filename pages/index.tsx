@@ -8,6 +8,8 @@ type Profile = {
   email: string
   full_name: string | null
   bio: string | null
+  age?: number | null
+  marriage_intent?: string | null
 }
 
 type Match = {
@@ -44,10 +46,22 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single()
 
-      if (profileData) {
-        setProfile(profileData as Profile)
+      if (!profileData) {
+        // Si no existe perfil, lo mandamos al onboarding
+        router.replace('/onboarding')
+        return
       }
 
+      // Guardamos el perfil
+      setProfile(profileData as Profile)
+
+      // 🔥 REDIRECCIÓN AL ONBOARDING SI FALTA INFO MATRIMONIAL
+      if (!profileData.age || !profileData.marriage_intent) {
+        router.replace('/onboarding')
+        return
+      }
+
+      // Cargar matches solo si el perfil está completo
       const { data: matchesData } = await supabase
         .from('matches')
         .select('*')

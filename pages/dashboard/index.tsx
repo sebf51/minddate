@@ -78,9 +78,9 @@ export default function DashboardPage() {
         <Link href="/profile" className="text-blue-600 underline">
   Editar perfil
 </Link>
-<Link href="/dashboard/chat" className="text-blue-600 underline">
-  Chat Groq
-</Link>
+        <Link href="/dashboard/coach" className="text-blue-600 underline">
+          Dating Coach
+        </Link>
           <button
             onClick={handleLogout}
             className="bg-red-500 text-white px-4 py-2 rounded"

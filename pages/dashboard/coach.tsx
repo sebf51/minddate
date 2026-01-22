@@ -36,6 +36,14 @@ export default function CoachPage() {
 
       if (error) {
         setError(error.message)
+        // Establecer mensaje inicial incluso cuando hay error
+        setMessages([
+          {
+            role: 'assistant',
+            content:
+              "Hey 👋 I'm having trouble loading your profile. Please try refreshing the page or check your connection.",
+          },
+        ])
       } else {
         const b = data?.bio || ''
         setBio(b)
@@ -69,7 +77,16 @@ export default function CoachPage() {
     if (!input.trim()) return
 
     if (!bio) {
-      setError('Please fill your bio at /dashboard/profile first')
+      const errorMsg = 'Please fill your bio at /dashboard/profile first'
+      setError(errorMsg)
+      // Agregar mensaje de error al chat para mejor UX
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `⚠️ ${errorMsg}`,
+        },
+      ])
       return
     }
 
@@ -103,12 +120,18 @@ export default function CoachPage() {
 
       const reply: ChatMessage = data.reply
       setMessages((prev) => [...prev, reply])
+      setError(null) // Limpiar errores previos si la respuesta fue exitosa
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Unknown error from coach')
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error from coach'
+      setError(errorMessage)
+      // Agregar mensaje de error al chat para mejor UX
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `⚠️ Sorry, I encountered an error: ${errorMessage}. Please try again.`,
+        },
+      ])
     } finally {
       setSending(false)
     }

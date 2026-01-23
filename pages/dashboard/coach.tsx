@@ -324,32 +324,30 @@ export default function CoachPage() {
         return
       }
 
-      // Calcular missingFields antes de enviar al API
-      const currentMissingFields = profileData
-        ? getMissingFields(profileData)
-        : []
+      // Obtener token de sesión para autenticación
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
 
-      // Determinar modo: onboarding si hay campos faltantes, coaching si no
-      const isOnboarding = currentMissingFields.length > 0
+      if (!token) {
+        setError('No estás autenticado. Por favor, inicia sesión de nuevo.')
+        setSending(false)
+        return
+      }
 
+      // Frontend simplificado: solo envía messages y userId
+      // Backend decide el modo automáticamente
       const res = await fetch('/api/coach', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isOnboarding
-            ? {
-                mode: 'onboarding' as const,
-                messages: newMessages,
-                missingFields: currentMissingFields,
-                userId: userId,
-              }
-            : {
-                mode: 'coaching' as const,
-                messages: newMessages,
-                bio: bio,
-                userId: userId,
-              }
-        ),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          messages: newMessages,
+          userId: userId,
+        }),
       })
 
 

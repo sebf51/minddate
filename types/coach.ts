@@ -26,4 +26,6 @@ export type CoachResponse = {
     content: string
   }
   error?: string
+  mode?: 'onboarding' | 'coaching'
+  missingFields?: string[]
 }

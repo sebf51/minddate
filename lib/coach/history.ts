@@ -13,9 +13,20 @@ export function buildHistoryForOnboarding(req: OnboardingRequest, systemPrompt: 
   ]
 }
 
-export function buildHistoryForCoaching(req: CoachingRequest, systemPrompt: string): GroqMessage[] {
+export function buildHistoryForCoaching(
+  req: CoachingRequest,
+  systemPrompt: string,
+  conversationMemory?: string
+): GroqMessage[] {
+  // Consolidar prompt base + memoria en UN SOLO mensaje system
+  let fullSystemPrompt = systemPrompt
+
+  if (conversationMemory && conversationMemory.trim().length > 0) {
+    fullSystemPrompt += `\n\nPrevious conversation context:\n${conversationMemory}`
+  }
+
   return [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: fullSystemPrompt }, // ← UN SOLO system
     { role: 'user', content: `My bio: "${req.bio}"` },
     ...req.messages,
   ]

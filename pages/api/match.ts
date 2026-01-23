@@ -89,7 +89,10 @@ export default async function handler(
 
     if (!profiles || profiles.length === 0) {
       console.log('[Match API] No profiles found for matching')
-      return res.status(500).json({ error: 'No profiles found' })
+      return res.status(200).json({
+        matches: [],
+        message: 'No hay perfiles compatibles todavía. Vuelve a intentarlo más tarde.',
+      })
     }
 
     console.log(`[Match API] Found ${profiles.length} profiles to compare`)
@@ -128,7 +131,14 @@ export default async function handler(
             throw new Error('No JSON found in response')
           }
         } catch (parseError) {
-          console.error('[Match API] JSON parse error for profile', profile.id, 'Content:', content.substring(0, 200))
+          console.error(
+            '[Match API] JSON parse error for profile',
+            profile.id,
+            'Content:',
+            content.substring(0, 200),
+            'Error:',
+            parseError
+          )
           parsed = { score: 0, explanation: 'Error parsing AI response' }
         }
 

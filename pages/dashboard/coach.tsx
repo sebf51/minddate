@@ -9,6 +9,36 @@ type ChatMessage = {
   content: string
 }
 
+type ProfileData = {
+  bio: string | null
+  age: number | null
+  city: string | null
+  country: string | null
+  languages: string[] | null
+  marriage_intent: string | null
+  looking_for: string | null
+  non_negotiables: string | null
+}
+
+type PendingField =
+  | 'age'
+  | 'city'
+  | 'country'
+  | 'languages'
+  | 'marriage_intent'
+  | 'looking_for'
+  | 'non_negotiables'
+
+const PENDING_FIELD_QUESTIONS: Record<PendingField, string> = {
+  age: '¿Cuál es tu edad?',
+  city: '¿En qué ciudad vives?',
+  country: '¿En qué país vives?',
+  languages: '¿Qué idiomas hablas? (separados por coma)',
+  marriage_intent: '¿Buscas matrimonio? (clear/open/unsure o una frase)',
+  looking_for: '¿Qué buscas en una pareja?',
+  non_negotiables: '¿Cuáles son tus no negociables?',
+}
+
 
 export default function CoachPage() {
   const router = useRouter()
@@ -18,6 +48,23 @@ export default function CoachPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<ProfileData | null>(null)
+  const [pendingField, setPendingField] = useState<PendingField | null>(null)
+
+  function getMissingFields(profile: ProfileData): PendingField[] {
+    const missing: PendingField[] = []
+    if (!profile.age) missing.push('age')
+    if (!profile.city?.trim()) missing.push('city')
+    if (!profile.country?.trim()) missing.push('country')
+    if (!profile.languages || profile.languages.length === 0) missing.push('languages')
+    if (!profile.marriage_intent?.trim()) missing.push('marriage_intent')
+    if (!profile.looking_for?.trim()) missing.push('looking_for')
+    if (!profile.non_negotiables?.trim()) missing.push('non_negotiables')
+    return missing
+  }
 
 
   useEffect(() => {
@@ -31,11 +78,12 @@ export default function CoachPage() {
         router.replace('/login')
         return
       }
+      setUserId(user.id)
 
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('bio')
+        .select('bio, age, city, country, languages, marriage_intent, looking_for, non_negotiables')
         .eq('id', user.id)
         .single()
 
@@ -50,9 +98,33 @@ export default function CoachPage() {
           },
         ])
       } else {
-        const b = data?.bio || ''
+        const profile: ProfileData = {
+          bio: data?.bio ?? null,
+          age: data?.age ?? null,
+          city: data?.city ?? null,
+          country: data?.country ?? null,
+          languages: data?.languages ?? null,
+          marriage_intent: data?.marriage_intent ?? null,
+          looking_for: data?.looking_for ?? null,
+          non_negotiables: data?.non_negotiables ?? null,
+        }
+        setProfileData(profile)
+
+        const b = profile.bio || ''
         setBio(b)
-        if (b) {
+
+        const missingFields = getMissingFields(profile)
+        const nextField = missingFields[0] || null
+        setPendingField(nextField)
+
+        if (nextField) {
+          setMessages([
+            {
+              role: 'assistant',
+              content: PENDING_FIELD_QUESTIONS[nextField],
+            },
+          ])
+        } else if (b) {
           setMessages([
             {
               role: 'assistant',
@@ -82,10 +154,11 @@ export default function CoachPage() {
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!input.trim()) return
+    const trimmedInput = input.trim()
+    if (!trimmedInput) return
 
 
-    if (!bio) {
+    if (!bio && !pendingField) {
       const errorMsg = 'Please fill your bio at /dashboard/profile first'
       setError(errorMsg)
       setMessages((prev) => [
@@ -103,9 +176,12 @@ export default function CoachPage() {
     setSending(true)
 
 
+    setSaveMessage(null)
+    setSaveError(null)
+
     const newUserMessage: ChatMessage = {
       role: 'user',
-      content: input.trim(),
+      content: trimmedInput,
     }
 
 
@@ -113,15 +189,167 @@ export default function CoachPage() {
     setMessages(newMessages)
     setInput('')
 
+    if (pendingField) {
+      if (!userId) {
+        setSaveError('No se pudo identificar el usuario para guardar datos.')
+        setSending(false)
+        return
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (pendingField === 'age') {
+        const age = Number(trimmedInput)
+        if (!Number.isNaN(age)) {
+          updates.age = age
+        } else {
+          setSaveError('Edad inválida. Escribe un número.')
+          setSending(false)
+          return
+        }
+      } else if (pendingField === 'languages') {
+        updates.languages = trimmedInput
+          .split(',')
+          .map((l) => l.trim())
+          .filter(Boolean)
+      } else {
+        updates[pendingField] = trimmedInput
+      }
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId)
+
+      if (updateError) {
+        setSaveError(updateError.message)
+        setSending(false)
+        return
+      }
+
+      setSaveMessage('Dato guardado en tu perfil.')
+
+      const updatedProfile: ProfileData = {
+        ...(profileData || {
+          bio: bio || null,
+          age: null,
+          city: null,
+          country: null,
+          languages: null,
+          marriage_intent: null,
+          looking_for: null,
+          non_negotiables: null,
+        }),
+        ...updates,
+      }
+      setProfileData(updatedProfile)
+
+      const missingFields = getMissingFields(updatedProfile)
+      const nextField = missingFields[0] || null
+      setPendingField(nextField)
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: nextField
+            ? PENDING_FIELD_QUESTIONS[nextField]
+            : 'Gracias. Ya tengo tus datos básicos. ¿En qué te ayudo ahora?',
+        },
+      ])
+      setSending(false)
+      return
+    }
+
+    // Guardar extras si el usuario pegó un JSON manual
+    const isJsonCandidate =
+      trimmedInput.startsWith('{') && trimmedInput.endsWith('}')
+    if (isJsonCandidate) {
+      try {
+        const parsed = JSON.parse(trimmedInput)
+        const updates: Record<string, unknown> = {}
+
+        if (parsed.age !== undefined) {
+          const age = Number(parsed.age)
+          if (!Number.isNaN(age)) updates.age = age
+        }
+        if (typeof parsed.city === 'string') updates.city = parsed.city
+        if (typeof parsed.country === 'string') updates.country = parsed.country
+        if (parsed.languages !== undefined) {
+          if (Array.isArray(parsed.languages)) {
+            updates.languages = parsed.languages
+          } else if (typeof parsed.languages === 'string') {
+            updates.languages = parsed.languages
+              .split(',')
+              .map((l: string) => l.trim())
+              .filter(Boolean)
+          }
+        }
+        if (typeof parsed.marriage_intent === 'string') {
+          updates.marriage_intent = parsed.marriage_intent
+        }
+        if (typeof parsed.looking_for === 'string') {
+          updates.looking_for = parsed.looking_for
+        }
+        if (typeof parsed.non_negotiables === 'string') {
+          updates.non_negotiables = parsed.non_negotiables
+        }
+
+        if (!userId) {
+          setSaveError('No se pudo identificar el usuario para guardar datos.')
+        } else if (Object.keys(updates).length === 0) {
+          setSaveError('JSON válido, pero sin campos reconocidos para guardar.')
+        } else {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', userId)
+
+          if (updateError) {
+            setSaveError(updateError.message)
+          } else {
+            setSaveMessage('Datos guardados en tu perfil.')
+          }
+        }
+      } catch (e) {
+        setSaveError('JSON no válido. Usa un objeto con llaves: { ... }')
+      }
+    }
+
 
     try {
+      // Validar que userId esté disponible
+      if (!userId) {
+        setError('No se pudo identificar el usuario')
+        setSending(false)
+        return
+      }
+
+      // Calcular missingFields antes de enviar al API
+      const currentMissingFields = profileData
+        ? getMissingFields(profileData)
+        : []
+
+      // Determinar modo: onboarding si hay campos faltantes, coaching si no
+      const isOnboarding = currentMissingFields.length > 0
+
       const res = await fetch('/api/coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bio,
-          messages: newMessages,
-        }),
+        body: JSON.stringify(
+          isOnboarding
+            ? {
+                mode: 'onboarding' as const,
+                messages: newMessages,
+                missingFields: currentMissingFields,
+                userId: userId,
+              }
+            : {
+                mode: 'coaching' as const,
+                messages: newMessages,
+                bio: bio,
+                userId: userId,
+              }
+        ),
       })
 
 
@@ -190,6 +418,16 @@ export default function CoachPage() {
           {error && (
             <div className="alert alert-error mb-4">
               {error}
+            </div>
+          )}
+          {saveError && (
+            <div className="alert alert-error mb-4">
+              {saveError}
+            </div>
+          )}
+          {saveMessage && (
+            <div className="alert alert-success mb-4">
+              {saveMessage}
             </div>
           )}
 

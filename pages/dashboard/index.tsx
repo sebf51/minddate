@@ -8,8 +8,6 @@ type Profile = {
   email: string
   full_name: string | null
   bio: string | null
-  age?: number | null
-  marriage_intent?: string | null
 }
 
 type Match = {
@@ -28,6 +26,7 @@ export default function DashboardPage() {
   const [matches, setMatches] = useState<Match[]>([])
   const [generatingMatches, setGeneratingMatches] = useState(false)
   const [matchError, setMatchError] = useState<string | null>(null)
+  const [matchMessage, setMatchMessage] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -49,14 +48,8 @@ export default function DashboardPage() {
         .single()
 
       if (!profileData) {
-        // Si no existe perfil, redirigir a onboarding
-        router.replace('/onboarding')
-        return
-      }
-
-      // Verificar si el perfil está completo (tiene age y marriage_intent)
-      if (!profileData.age || !profileData.marriage_intent) {
-        router.replace('/onboarding')
+        // Si no existe perfil, redirigir a perfil básico
+        router.replace('/dashboard/profile')
         return
       }
 
@@ -90,6 +83,7 @@ export default function DashboardPage() {
 
     setGeneratingMatches(true)
     setMatchError(null)
+    setMatchMessage(null)
 
     try {
       // Obtener token de sesión de Supabase
@@ -110,18 +104,48 @@ export default function DashboardPage() {
         }),
       })
 
-      const data = await res.json()
+      // Verificar Content-Type antes de parsear JSON
+      const contentType = res.headers.get('content-type')
+      let data
+      
+      try {
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text()
+          throw new Error(`Server returned non-JSON response: ${text.substring(0, 200)}`)
+        }
+        data = await res.json()
+      } catch (jsonError) {
+        // Si ya leímos el response, no podemos leerlo de nuevo
+        // Usar el error original o un mensaje genérico
+        const errorMsg = jsonError instanceof Error 
+          ? jsonError.message 
+          : 'Failed to parse server response'
+        throw new Error(errorMsg)
+      }
 
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) {
+        throw new Error(data.error || `Server error: ${res.status}`)
+      }
 
-      // Reload matches from DB
-      const { data: matchesData } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('score', { ascending: false })
+      // Guardar mensaje de la API (especialmente cuando matches está vacío)
+      if (data.message) {
+        setMatchError(null) // Limpiar errores previos
+        setMatchMessage(data.message)
+      }
 
-      setMatches((matchesData as Match[]) || [])
+      const apiMatches = Array.isArray(data.matches) ? data.matches : []
+      setMatches(apiMatches)
+
+      // Refetch opcional solo si la API no devolvió matches
+      if (apiMatches.length === 0) {
+        const { data: matchesData } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('score', { ascending: false })
+
+        setMatches((matchesData as Match[]) || [])
+      }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error generating matches'
       setMatchError(msg)
@@ -205,9 +229,18 @@ export default function DashboardPage() {
               {generatingMatches ? '⏳ Buscando matches...' : '🔍 Generar matches'}
             </button>
             {!profile?.bio && (
-              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
-                ⚠️ Completa tu bio primero
-              </p>
+              <div style={{ marginTop: '8px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                  ⚠️ Completa tu bio primero
+                </p>
+                <Link
+                  href="/dashboard/profile"
+                  className="btn btn-outline"
+                  style={{ marginTop: '8px', display: 'inline-block' }}
+                >
+                  Completar bio
+                </Link>
+              </div>
             )}
           </div>
 
@@ -215,12 +248,19 @@ export default function DashboardPage() {
           {matches.length === 0 ? (
             <div className="empty-state">
               <p>Aún no tienes matches.</p>
-              <p className="text-sm mt-2">Haz clic en "Generar matches" para encontrar perfiles compatibles.</p>
+              {matchMessage ? (
+                <p className="text-sm mt-2 text-gray-600">{matchMessage}</p>
+              ) : (
+                <p className="text-sm mt-2">Haz clic en "Generar matches" para encontrar perfiles compatibles.</p>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {matches.map(match => (
-                <div key={match.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+              {matches.map((match, index) => (
+                <div
+                  key={match.id || match.matched_user_id || `match-${index}`}
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                >
                   <div className="flex justify-between items-start gap-4">
                     <div>
                       <h3 className="font-semibold">
